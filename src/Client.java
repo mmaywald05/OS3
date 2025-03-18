@@ -34,16 +34,14 @@ public class Client implements Runnable {
         Path path = Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + name + ".txt");
         try {
             Files.createFile(path);
-            System.out.println("File created: " + path);
+            System.out.println("File created: " + path+"\n-------------------");
+
         } catch (IOException e) {
             e.printStackTrace();
             System.err.println("Error creating file: " + e.getMessage());
         }
     }
 
-    public void read_print(String filename){
-        System.out.println(read(filename));
-    }
 
     public String read(String filename){
         /* Read idea (file content) into string buffer. print and return.
@@ -51,7 +49,7 @@ public class Client implements Runnable {
         Path path = Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename + ".txt");
         String content = "null";
         try {
-             content = Files.readString(path);
+             content = Files.readString(path) +"\n-------------------";
         }catch (IOException e){
             System.err.println("Read method failed when it should never do so. Wrong name?");
             e.printStackTrace();
@@ -74,7 +72,7 @@ public class Client implements Runnable {
         File file = new File(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename+".txt");
 
         try {
-            System.out.println("writing to file "+ filename);
+
             FileWriter writer = new FileWriter(file, false); // true to append
             writer.write(content);
             writer.close();
@@ -88,7 +86,7 @@ public class Client implements Runnable {
     public boolean commitPrompt (){
 
         while (true){
-            System.out.println("Commit? (y/n)");
+            System.out.print("Commit? (y/n) \n> ");
             String line = sc.nextLine();
             if(line.equals("y") || line.equals("Y")){
                 return true;
@@ -116,20 +114,18 @@ public class Client implements Runnable {
     }
 
     public boolean commit(String filename, String content){
-        System.out.println("creating snapshot");
         createSnapshot();
-        long lastModified = getLastModified(filename);
+        long t1 = getLastModified(filename);
         if(commitPrompt())
         {
-            long newLastModified = getLastModified(filename);
-            System.out.println("old last modified: " + lastModified);
-            System.out.println("new last modified: " + newLastModified);
-            if(newLastModified != lastModified){
-                System.out.println("conflict! rollback FS.");
+            long t2 = getLastModified(filename);
+
+            if(t1 != t2){
+                System.out.println("Conflict detected. Rolling back.");
                 rollbackSnapshot();
                 deleteSnapshot();
             }else{
-                System.out.println("Commit transaction:");
+                System.out.println("No Conflicts. Committing transaction.\n-------------------");
                 write(filename, content);
                 deleteSnapshot();
             }
@@ -157,9 +153,7 @@ public class Client implements Runnable {
         String snapshot = this.zfspool_name + "@" + this.id;
         try {
             int exitCode = ZFS_FS.run_admin("sudo zfs rollback -r " + snapshot, "running 'zfs rollback -r " + snapshot+"'");
-            if (exitCode == 0) {
-                System.out.println("Rolled back to snapshot: " + snapshot);
-            } else {
+            if (exitCode != 0) {
                 System.err.println("Failed to roll back to snapshot: " + snapshot);
             }
         } catch (Exception e) {
@@ -171,29 +165,15 @@ public class Client implements Runnable {
         String snapshot = this.zfspool_name + "@" + this.id;
         try {
             int exitCode = ZFS_FS.run_admin("sudo zfs destroy " + snapshot, "running 'zfs destroy " + snapshot+"'");
-            if (exitCode == 0) {
-                System.out.println("Deleted snapshot: " + snapshot);
-            } else {
-                System.err.println("Failed to roll back to snapshot: " + snapshot);
+            if (exitCode != 0) {
+                System.err.println("Failed to delete snapshot: " + snapshot);
             }
         } catch (Exception e) {
             System.err.println("Error rolling back snapshot: " + e.getMessage());
         }
     }
 
-    public void zfsTransaction(String fileName, String content){
 
-        /*
-        Edit idea with name fileName.
-        1. Create Snapshot.
-        2. Read File into String Buffer
-        3. Create file hash or save "last edited" timestamp from metadata
-        3. Edit File (replace content)
-        4. Replace content
-        5. Check hash (or last edited) with file from fs
-        6. if equal -> commit, else rollback.
-         */
-    }
 
     public boolean delete(String fileName){
         File file = new File(rootDir + "/mountpoint/"+ zfspool_name+ "/" + fileName +".txt");
@@ -202,9 +182,19 @@ public class Client implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("Client " + this.id + " started. Type 'help' for list of commands");
+        System.out.println("Client " + this.id + " waiting for input. Type 'help' for list of commands");
+        // TODO Make password caching work?
+        try {
+            new ProcessBuilder("sudo", "-v").start().waitFor();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
         while (true){
-            System.out.println("Waiting for input:");
+            System.out.print("> ");
             String line = sc.nextLine();
             String[] words = line.split(" ");
             String quotationSubstring;
@@ -219,6 +209,9 @@ public class Client implements Runnable {
 
             try{
                 switch (words[0]){
+                    case "":{
+                        break;
+                    }
                     case "help":{
                         printCommandList();
                         break;
