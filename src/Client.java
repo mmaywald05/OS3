@@ -33,7 +33,7 @@ public class Client implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        // Main thread loop
+        // Main thread loop. Wait for user input forever
         while (true){
             System.out.print("> ");
             String line = sc.nextLine();
@@ -50,7 +50,7 @@ public class Client implements Runnable {
 
             try{
                 switch (words[0]){
-                    case "":{
+                    case "":{ // Do nothing if empty.
                         break;
                     }
                     case "help":{
@@ -63,7 +63,6 @@ public class Client implements Runnable {
                         createFile(ideaName);
                         break;
                     case "read":
-                        // was wenn file nicht existiert?
                         if(words.length != 2) throw new FS_Exception("Wrong number of Arguments");
                         ideaName = words[1];
                         System.out.println(read(ideaName));
@@ -71,20 +70,17 @@ public class Client implements Runnable {
                     case "write":
                         ideaName = words[1];
                         ideaContent = quotationSubstring;
-                        long lastModified = getLastModified(ideaName);
                         if(ideaContent.isEmpty()) throw new FS_Exception("Content needs to be given in \"quotation marks\"");
-                        System.out.println("Replacing idea " + ideaName +" with \"" + ideaContent+"\"");
+                        System.out.println("Writing to" + ideaName +": \"" + ideaContent+"\"");
                         transaction(ideaName, ideaContent);
-
                         break;
-
                     case "append":
                         ideaName = words[1];
                         ideaContent = quotationSubstring;
                         if(ideaContent.isEmpty()) throw new FS_Exception("Content needs to be given in \"quotation marks\"");
                         String content = read(ideaName);
                         content = content + ideaContent;
-                        System.out.println("Replacing idea " + ideaName +" with \"" + ideaContent+"\"");
+                        System.out.println("Appending [" +ideaContent+ "] to " + ideaName );
                         transaction(ideaName, content);
                         break;
 
@@ -97,7 +93,7 @@ public class Client implements Runnable {
                             System.out.println("Could not delete " + ideaName);
                         }
                         break;
-                    case "ls":
+                    case "ls": // List files
                         System.out.println(ZFS_FS.run_output(new ProcessBuilder("ls", "mountpoint/"+zfspool_name)));
                         break;
                     case "exit": {
@@ -157,7 +153,6 @@ public class Client implements Runnable {
 
 
     public String read(String filename){
-        /* Read idea (file content) into string buffer. print and return.*/
         Path path = Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename + ".txt");
         String content = "null";
         try {
@@ -227,7 +222,6 @@ public class Client implements Runnable {
 
     public long getLastModified(String filename){
         Path path = Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename + ".txt");
-
         FileTime fileTime= null;
         try {
             fileTime = Files.getLastModifiedTime(path);

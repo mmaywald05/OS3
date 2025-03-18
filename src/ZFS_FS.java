@@ -79,13 +79,10 @@ public class ZFS_FS {
         }
     }
 
-    public static int run_admin(String cliInput, String prompt) throws IOException, InterruptedException {
-        String script = "do shell script \""+ cliInput +
-                "\" with administrator privileges with prompt \"" + prompt + "\"";
-        ProcessBuilder createZfsPool = new ProcessBuilder("osascript", "-e", script);
-        return createZfsPool.start().waitFor();
-    }
 
+    /**
+     * ZFS Snapshot management
+     */
     public static void createSnapshot(String name){
         try {
             int exitCode = run_admin("sudo zfs snapshot " + name, "running 'sudo zfs snapshot " + name+"'");
@@ -124,6 +121,15 @@ public class ZFS_FS {
     /**
      * Utility Functions for the process builder.
      */
+    //Prompt User password, then run.
+    public static int run_admin(String cliInput, String prompt) throws IOException, InterruptedException {
+        String script = "do shell script \""+ cliInput +
+                "\" with administrator privileges with prompt \"" + prompt + "\"";
+        ProcessBuilder createZfsPool = new ProcessBuilder("osascript", "-e", script);
+        return createZfsPool.start().waitFor();
+    }
+
+    // Run processBuilder
     private static void run(ProcessBuilder processBuilder) throws IOException, InterruptedException {
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
@@ -138,6 +144,7 @@ public class ZFS_FS {
         }
     }
 
+    // Run processBuilder and return console output as String
     public static String run_output(ProcessBuilder processBuilder) throws IOException, InterruptedException {
         System.out.println("Running process: " + processBuilder.command());
         processBuilder.redirectErrorStream(true);
