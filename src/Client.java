@@ -192,7 +192,7 @@ public class Client implements Runnable {
 
     // TRANSACTION
 
-    public boolean transaction(String filename, String content){
+    public void transaction(String filename, String content){
         createSnapshot();
         long t1 = getLastModified(filename);
         if(commitPrompt()) {
@@ -208,7 +208,6 @@ public class Client implements Runnable {
         }else{
             System.err.println("Write to " + filename + " aborted.");
         }
-        return true;
     }
 
     // HELPER FUNCTIONS
