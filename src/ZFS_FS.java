@@ -6,7 +6,7 @@ public class ZFS_FS {
         try{
             String fshome;
             String location = "/Desktop/";
-            int size_gb = 1;
+            int size_mb = 1;
             if(location.length()>0){
                 fshome = System.getProperty("user.home") + location;
             }else{
@@ -22,7 +22,7 @@ public class ZFS_FS {
             }
 
             System.out.println("Creating virtual disk at " + fshome);
-            ProcessBuilder trunc = new ProcessBuilder("truncate","-s", size_gb+"G", fshome+ fs_identifier +".img");
+            ProcessBuilder trunc = new ProcessBuilder("truncate","-s", size_mb+"M", fshome+ fs_identifier +".img");
             run(trunc);
             ProcessBuilder createDisk = new ProcessBuilder("hdiutil", "attach", "-nomount", fshome+ fs_identifier +".img");
             String vDisk_id = run_output(createDisk);
