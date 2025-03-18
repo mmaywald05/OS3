@@ -5,6 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileTime;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Scanner;
 import java.util.List;
 
@@ -14,12 +17,15 @@ public class Client implements Runnable {
     Scanner sc;
     String zfspool_name;
     String rootDir;
-
+    String snapshot;
+    String currentSnapshot;
     public Client (String id, String poolName){
         this.id = id;
         this.zfspool_name = poolName;
         rootDir = System.getProperty("user.dir");
         sc = new Scanner(System.in);
+        snapshot = null;
+        currentSnapshot = null;
     }
 
 
@@ -54,27 +60,126 @@ public class Client implements Runnable {
     }
 
 
-    public void append(String filename, String content){
+    public void append(String filename, String content)  {
         try {
             System.out.println("writing to idea "+ filename);
             Files.write(Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename + ".txt"), (content+"\n").getBytes(), StandardOpenOption.APPEND);
         }catch (IOException e){
-            e.printStackTrace();
+            System.out.println("Error writing to idea "+ filename + ". Typo in name?");
         }
 
     }
 
     public void write(String filename, String content){
+        File file = new File(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename+".txt");
 
         try {
-            System.out.println("writing to idea "+ filename);
-            Files.write(Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename + ".txt"), (content+"\n").getBytes(), StandardOpenOption.WRITE);
+            System.out.println("writing to file "+ filename);
+            FileWriter writer = new FileWriter(file, false); // true to append
+            writer.write(content);
+            writer.close();
         }catch (IOException e){
-            e.printStackTrace();
+            System.out.println("Error writing to idea "+ filename + ", probably typo in idea name. Check current list with 'ls'");
         }
 
     }
 
+
+    public boolean commitPrompt (){
+
+        while (true){
+            System.out.println("Commit? (y/n)");
+            String line = sc.nextLine();
+            if(line.equals("y") || line.equals("Y")){
+                return true;
+            }else if(line.equals("n") || line.equals("N")){
+                return false;
+            }
+        }
+
+    }
+
+    public long getLastModified(String filename){
+        Path path = Paths.get(rootDir + "/mountpoint/"+ zfspool_name+ "/" + filename + ".txt");
+
+        FileTime fileTime= null;
+        try {
+            fileTime = Files.getLastModifiedTime(path);
+        } catch (IOException e) {
+            System.err.println("Cannot get the last modified time - " + e);
+        }
+        if(fileTime == null){
+            return 0;
+        }
+        return fileTime.toMillis();
+
+    }
+
+    public boolean commit(String filename, String content){
+        System.out.println("creating snapshot");
+        createSnapshot();
+        long lastModified = getLastModified(filename);
+        if(commitPrompt())
+        {
+            long newLastModified = getLastModified(filename);
+            System.out.println("old last modified: " + lastModified);
+            System.out.println("new last modified: " + newLastModified);
+            if(newLastModified != lastModified){
+                System.out.println("conflict! rollback FS.");
+                rollbackSnapshot();
+                deleteSnapshot();
+            }else{
+                System.out.println("Commit transaction:");
+                write(filename, content);
+                deleteSnapshot();
+            }
+        }else{
+            System.err.println("Write to " + filename + " aborted.");
+        }
+        return true;
+    }
+
+    public void createSnapshot() {
+        String snapshot = this.zfspool_name + "@" + this.id;
+        try {
+            int exitCode = ZFS_FS.run_admin("sudo zfs snapshot " + snapshot, "running 'sudo zfs snapshot " + snapshot+"'");
+            if (exitCode == 0) {
+                System.out.println("Snapshot created: " + snapshot);
+            } else {
+                System.err.println("Failed to create snapshot: " + snapshot);
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating snapshot: " + e.getMessage());
+        }
+    }
+
+    public void rollbackSnapshot() {
+        String snapshot = this.zfspool_name + "@" + this.id;
+        try {
+            int exitCode = ZFS_FS.run_admin("sudo zfs rollback -r " + snapshot, "running 'zfs rollback -r " + snapshot+"'");
+            if (exitCode == 0) {
+                System.out.println("Rolled back to snapshot: " + snapshot);
+            } else {
+                System.err.println("Failed to roll back to snapshot: " + snapshot);
+            }
+        } catch (Exception e) {
+            System.err.println("Error rolling back snapshot: " + e.getMessage());
+        }
+    }
+
+    public void deleteSnapshot(){
+        String snapshot = this.zfspool_name + "@" + this.id;
+        try {
+            int exitCode = ZFS_FS.run_admin("sudo zfs destroy " + snapshot, "running 'zfs destroy " + snapshot+"'");
+            if (exitCode == 0) {
+                System.out.println("Deleted snapshot: " + snapshot);
+            } else {
+                System.err.println("Failed to roll back to snapshot: " + snapshot);
+            }
+        } catch (Exception e) {
+            System.err.println("Error rolling back snapshot: " + e.getMessage());
+        }
+    }
 
     public void zfsTransaction(String fileName, String content){
 
@@ -94,11 +199,6 @@ public class Client implements Runnable {
         File file = new File(rootDir + "/mountpoint/"+ zfspool_name+ "/" + fileName +".txt");
         return file.delete();
     }
-
-    public void comment(){
-
-    }
-
 
     @Override
     public void run() {
@@ -137,13 +237,24 @@ public class Client implements Runnable {
                     case "write":
                         ideaName = words[1];
                         ideaContent = quotationSubstring;
-                        write(ideaName, ideaContent);
+                        long lastModified = getLastModified(ideaName);
+                        if(ideaContent.isEmpty()) throw new FS_Exception("Content needs to be given in \"quotation marks\"");
+                        System.out.println("Replacing idea " + ideaName +" with \"" + ideaContent+"\"");
+                        commit(ideaName, ideaContent);
+
                         break;
 
                     case "append":
                         ideaName = words[1];
                         ideaContent = quotationSubstring;
-                        append(ideaName, ideaContent);
+                        if(ideaContent.isEmpty()) throw new FS_Exception("Content needs to be given in \"quotation marks\"");
+                        System.out.println("Replacing idea " + ideaName +" with \"" + ideaContent+"\"");
+                        if(commitPrompt())
+                        {
+                            append(ideaName, ideaContent);
+                        }else{
+                            System.err.println("Write to " + ideaName + " aborted.");
+                        }
                         break;
 
                     case "delete":
@@ -177,56 +288,7 @@ public class Client implements Runnable {
         }
     }
 
-    private class ConsoleTextEditor {
-        public static void editFileContent(List<String> content) {
-            if (content.isEmpty()) {
-                content.add(""); // Ensure at least one line exists
-            }
 
-            Console console = System.console();
-            if (console == null) {
-                System.err.println("No console detected. Run this in a terminal.");
-                return;
-            }
-
-            StringBuilder line = new StringBuilder(content.get(0)); // Work with the first line
-            int cursorPos = line.length(); // Start cursor at the end of text
-
-            while (true) {
-                // Display the current line with a visible cursor
-                System.out.print("\r" + line.toString() + " "); // Extra space to clear characters
-                System.out.print("\r" + " ".repeat(cursorPos) + "|"); // Cursor indicator
-
-                char input = console.readPassword()[0]; // Read single key press
-
-                if (input == '\n') { // Enter key (exit editing mode)
-                    break;
-                } else if (input == 27) { // Escape key (cancel)
-                    return;
-                } else if (input == '\b' || input == 127) { // Backspace
-                    if (cursorPos > 0) {
-                        line.deleteCharAt(cursorPos - 1);
-                        cursorPos--;
-                    }
-                } else if (input == '\033') { // Arrow key sequences
-                    console.readPassword(); // Read '['
-                    switch (console.readPassword()[0]) {
-                        case 'D': // Left Arrow
-                            if (cursorPos > 0) cursorPos--;
-                            break;
-                        case 'C': // Right Arrow
-                            if (cursorPos < line.length()) cursorPos++;
-                            break;
-                    }
-                } else { // Normal character input
-                    line.insert(cursorPos, input);
-                    cursorPos++;
-                }
-            }
-
-            content.set(0, line.toString()); // Save changes back to the content list
-        }
-    }
 
 
     private class FS_Exception extends Exception{
@@ -240,8 +302,8 @@ public class Client implements Runnable {
     static void printCommandList() {
         System.out.printf("%-10s %-10s %-10s -> %s%n", "create", "[name]", "", "Create idea with name [name]");
         System.out.printf("%-10s %-10s %-10s -> %s%n", "read", "[name]", "", "Read and print idea [name]");
-        System.out.printf("%-10s %-10s %-10s -> %s%n", "write", "[name]", "[content]", "Write [content] to idea [name]");
-        System.out.printf("%-10s %-10s %-10s -> %s%n", "append", "[name]", "[content]", "Append [content] to idea [name]");
+        System.out.printf("%-10s %-10s %-10s -> %s%n", "write", "[name]", "\"[content]\"", "Write [content] to idea [name]");
+        System.out.printf("%-10s %-10s %-10s -> %s%n", "append", "[name]", "\"[content]\"", "Append [content] to idea [name]");
         System.out.printf("%-10s %-10s %-10s -> %s%n", "delete", "[name]", "", "Delete idea [name]");
         System.out.printf("%-10s %-10s %-10s -> %s%n", "ls", "", "", "List all ideas");
         System.out.printf("%-10s %-10s %-10s -> %s%n", "exit", "", "", "End Client application");
@@ -263,6 +325,10 @@ public class Client implements Runnable {
         return output.toString();
     }
 
+    private static void printFileTime(FileTime fileTime) {
+        DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy - hh:mm:ss");
+        System.out.println(dateFormat.format(fileTime.toMillis()));
+    }
 
 }
 

@@ -9,7 +9,7 @@ public class InitializeFS {
         String name = sc.nextLine();
 
 
-        fs.initialize(name);
+        ZFS_FS.initialize(name);
 
         System.out.println("Filesystem initialized.");
 

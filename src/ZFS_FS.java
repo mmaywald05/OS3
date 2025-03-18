@@ -1,12 +1,79 @@
 import java.io.*;
 
-public class fs {
-
-    static String PARTITION_PATH;
+public class ZFS_FS {
 
     public static void initialize (String fs_identifier){
         try{
-            zfs.initialize(fs_identifier, "/Desktop/", 1);
+            String fshome;
+            String location = "/Desktop/";
+            int size_gb = 1;
+            if(location.length()>0){
+                fshome = System.getProperty("user.home") + location;
+            }else{
+                fshome = System.getProperty("user.home") + "/Desktop/";
+            }
+
+            System.out.println("Creating virtual disk at " + fshome);
+            ProcessBuilder trunc = new ProcessBuilder("truncate","-s", size_gb+"G", fshome+ fs_identifier +".img");
+            PBUtil.run(trunc);
+            ProcessBuilder createDisk = new ProcessBuilder("hdiutil", "attach", "-nomount", fshome+ fs_identifier +".img");
+            String vDisk_id = PBUtil.run_output(createDisk);
+
+
+            // Create the zfs pool (requires admin confirmation via password
+            // AppleScript command to show a password prompt and run `zpool create`
+            // AppleScript command with a custom prompt
+
+            String prompt_create_zpool = "zpool requires admin rights to create pool '"+ fs_identifier +"'";
+            String script = "do shell script \"sudo zpool create " + fs_identifier + " " + vDisk_id +
+                    "\" with administrator privileges with prompt \"" + prompt_create_zpool + "\"";
+            System.out.println("ZFS pool '" + fs_identifier + "' initialized successfully on " + vDisk_id);
+
+            ProcessBuilder createZfsPool = new ProcessBuilder("osascript", "-e", script);
+            createZfsPool.start().waitFor();
+            System.out.println("zfs pool was created.");
+
+            System.out.println("Current Pools: ");
+            String pools = PBUtil.run_output(new ProcessBuilder("zpool", "list"));
+            System.out.println(pools);
+
+
+            System.out.println("Mounting ZFS Pool to project root.");
+            String root = System.getProperty("user.dir");
+
+            String prompt_mount_zfs = "zfs requires admin rifghts to set mountpoint at project root/mountpoint";
+            String mountScript = "do shell script \"sudo zfs set mountpoint=" + root+"/mountpoint/"+ fs_identifier + " " + fs_identifier +
+                    "\" with administrator privileges with prompt \"" + prompt_mount_zfs + "\"";
+
+            System.out.println("mountScript:  "+ mountScript );
+            ProcessBuilder mountProcess = new ProcessBuilder("osascript", "-e", mountScript);
+            mountProcess.start().waitFor();
+
+
+            File dir = new File(root + "/mountpoint/"+ fs_identifier + "/ideas");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            dir.setReadable(true, false);
+            dir.setWritable(true, false);
+            dir.setExecutable(true, false);
+
+            System.out.println("Filesystem is available under " + root+ "/" + fs_identifier + "/ideas");
+            new ProcessBuilder("zpool","list").start();
+
+            String prompt_accessRights = "Admin confirmation needed once more to give access rights to new disk to $USER.";
+            String setAccessRights = "do shell script \"sudo chown $USER " + root+"/mountpoint/"+ fs_identifier + " " + fs_identifier +
+                    "\" with administrator privileges with prompt \"" + prompt_accessRights + "\"";
+            ProcessBuilder accessRightsScript = new ProcessBuilder("osascript", "-e", setAccessRights);
+            accessRightsScript.start().waitFor();
+
+            //sudo chown $USER root + "/mountpoint/" + poolName
+            // sudo chmod 644 /Users/maywald/Ideaprojects/zfs_lib/mountpoint/myFS/test.txt
+            //
+            //System.out.println("Project Path:");
+            //System.out.println(System.getProperty("user.dir"));
+            // sudo zfs set mountpoint=/Users/$(whoami)/Desktop/mypool mypool;
+
         }catch (IOException e){
             System.err.println("IO Exception");
             e.printStackTrace();
@@ -29,11 +96,11 @@ public class fs {
         // ´sudo zgfs set mountpoint=THiS DIRECTORY poolName´
     }
 
-    public static void destroy(){
-        /** Clean up file system stuff. Delete remaining snapshots, virtual partition, pool, etc.
-         *
-         */
-
+    public static int run_admin(String cliInput, String prompt) throws IOException, InterruptedException {
+        String script = "do shell script \""+ cliInput +
+                "\" with administrator privileges with prompt \"" + prompt + "\"";
+        ProcessBuilder createZfsPool = new ProcessBuilder("osascript", "-e", script);
+        return createZfsPool.start().waitFor();
     }
 
     public static String read(){
@@ -230,6 +297,7 @@ public class fs {
             }
             return output.toString();
         }
+
 
     }
 }
