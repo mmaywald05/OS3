@@ -8,20 +8,8 @@ public class InitializeFS {
         System.out.print("Name: ");
         String name = sc.nextLine();
 
-
         ZFS_FS.initialize(name);
 
         System.out.println("Filesystem initialized.");
-
-
-
-        /**
-         * 1. ZFS Library
-         *  - ZFS Transaction
-         *  - Snapshot, Read, Change, Snapshot2 Check, Write.
-         *  -
-         *
-         *
-         */
     }
 }

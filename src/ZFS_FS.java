@@ -1,5 +1,3 @@
-import com.sun.security.jgss.GSSUtil;
-
 import java.io.*;
 
 public class ZFS_FS {
@@ -15,7 +13,7 @@ public class ZFS_FS {
                 fshome = System.getProperty("user.home") + "/Desktop/";
             }
             try {
-                System.out.println("Enter password to cache for further cli processes (zpool, zfs and creating virtual disks require admin righs ");
+                System.out.println("Enter password if prompt appears to cache for further cli processes (zpool, zfs and creating virtual disks require admin rights");
                 new ProcessBuilder("sudo", "-v").start().waitFor();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
@@ -31,8 +29,8 @@ public class ZFS_FS {
 
 
             // Create the zfs pool (requires admin confirmation via password
-            // AppleScript command to show a password prompt and run `zpool create`
-            // AppleScript command with a custom prompt
+            // AppleScript command to show a password prompt and run `sudo zpool create`
+
 
             String prompt_create_zpool = "zpool requires admin rights to create pool '"+ fs_identifier +"'";
             String script = "do shell script \"sudo zpool create " + fs_identifier + " " + vDisk_id +
@@ -72,13 +70,6 @@ public class ZFS_FS {
             ProcessBuilder accessRightsScript = new ProcessBuilder("osascript", "-e", setAccessRights);
             accessRightsScript.start().waitFor();
 
-            //sudo chown $USER root + "/mountpoint/" + poolName
-            // sudo chmod 644 /Users/maywald/Ideaprojects/zfs_lib/mountpoint/myFS/test.txt
-            //
-            //System.out.println("Project Path:");
-            //System.out.println(System.getProperty("user.dir"));
-            // sudo zfs set mountpoint=/Users/$(whoami)/Desktop/mypool mypool;
-
         }catch (IOException e){
             System.err.println("IO Exception");
             e.printStackTrace();
@@ -86,19 +77,6 @@ public class ZFS_FS {
             System.err.println("InterruptedException");
             e.printStackTrace();
         }
-        /**
-         * 1. zpool anlegen
-         *      - dafür virtual disk erstellen, virutelle Partition ab der ZFS beginnt.
-         *      - bekommt einen Disknamen, etc. Muss gemounted werden
-         *
-         */
-        // sudo zpool create mypool /dev/
-        // create a virtual disk
-        // ´truncate -s 1G ~/Desktop/zfs_pool.img
-        // ´hdiutil attach -nomount ~/Desktop/zfs_pool.img´
-        // ´diskutil list | grep "disk"´
-        // Mount disk to project folder
-        // ´sudo zgfs set mountpoint=THiS DIRECTORY poolName´
     }
 
     public static int run_admin(String cliInput, String prompt) throws IOException, InterruptedException {
@@ -139,7 +117,7 @@ public class ZFS_FS {
                 System.err.println("Failed to delete snapshot: " + snapshot);
             }
         } catch (Exception e) {
-            System.err.println("Error rolling back snapshot: " + e.getMessage());
+            System.err.println("Error deleting snapshot: " + e.getMessage());
         }
     }
 
@@ -160,7 +138,7 @@ public class ZFS_FS {
         }
     }
 
-    private static String run_output(ProcessBuilder processBuilder) throws IOException, InterruptedException {
+    public static String run_output(ProcessBuilder processBuilder) throws IOException, InterruptedException {
         System.out.println("Running process: " + processBuilder.command());
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
@@ -176,8 +154,5 @@ public class ZFS_FS {
         }
         return output.toString();
     }
-
-
-
 }
 
