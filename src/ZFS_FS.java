@@ -37,25 +37,20 @@ public class ZFS_FS {
             String prompt_create_zpool = "zpool requires admin rights to create pool '"+ fs_identifier +"'";
             String script = "do shell script \"sudo zpool create " + fs_identifier + " " + vDisk_id +
                     "\" with administrator privileges with prompt \"" + prompt_create_zpool + "\"";
-            System.out.println("ZFS pool '" + fs_identifier + "' initialized successfully on " + vDisk_id);
 
             ProcessBuilder createZfsPool = new ProcessBuilder("osascript", "-e", script);
             createZfsPool.start().waitFor();
-            System.out.println("zfs pool was created.");
-
-            System.out.println("Current Pools: ");
+            System.out.println("ZFS pool '" + fs_identifier + "' initialized successfully on " + vDisk_id);
             String pools = run_output(new ProcessBuilder("zpool", "list"));
             System.out.println(pools);
 
 
-            System.out.println("Mounting ZFS Pool to project root.");
+            System.out.println("Mounting ZFS Pool to program root.");
             String root = System.getProperty("user.dir");
-
             String prompt_mount_zfs = "zfs requires admin rifghts to set mountpoint at project root/mountpoint";
             String mountScript = "do shell script \"sudo zfs set mountpoint=" + root+"/mountpoint/"+ fs_identifier + " " + fs_identifier +
                     "\" with administrator privileges with prompt \"" + prompt_mount_zfs + "\"";
 
-            System.out.println("mountScript:  "+ mountScript );
             ProcessBuilder mountProcess = new ProcessBuilder("sudo", "zfs", "mountpoint=" + root+ "/mountpoint/"+ fs_identifier, fs_identifier );
             mountProcess.start().waitFor();
 
@@ -113,6 +108,40 @@ public class ZFS_FS {
         return createZfsPool.start().waitFor();
     }
 
+    public static void createSnapshot(String name){
+        try {
+            int exitCode = run_admin("sudo zfs snapshot " + name, "running 'sudo zfs snapshot " + name+"'");
+            if (exitCode == 0) {
+                System.out.println("Snapshot created: " + name);
+            } else {
+                System.err.println("Failed to create snapshot: " + name);
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating snapshot: " + e.getMessage());
+        }
+    }
+
+    public static void rollback(String snapshot){
+        try {
+            int exitCode = ZFS_FS.run_admin("sudo zfs rollback -r " + snapshot, "running 'zfs rollback -r " + snapshot+"'");
+            if (exitCode != 0) {
+                System.err.println("Failed to roll back to snapshot: " + snapshot);
+            }
+        } catch (Exception e) {
+            System.err.println("Error rolling back snapshot: " + e.getMessage());
+        }
+    }
+
+    public static void deleteSnapshot(String snapshot){
+        try {
+            int exitCode = ZFS_FS.run_admin("sudo zfs destroy " + snapshot, "running 'zfs destroy " + snapshot+"'");
+            if (exitCode != 0) {
+                System.err.println("Failed to delete snapshot: " + snapshot);
+            }
+        } catch (Exception e) {
+            System.err.println("Error rolling back snapshot: " + e.getMessage());
+        }
+    }
 
     /**
      * Utility Functions for the process builder.

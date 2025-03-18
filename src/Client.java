@@ -116,19 +116,16 @@ public class Client implements Runnable {
     public boolean commit(String filename, String content){
         createSnapshot();
         long t1 = getLastModified(filename);
-        if(commitPrompt())
-        {
+        if(commitPrompt()) {
             long t2 = getLastModified(filename);
-
             if(t1 != t2){
                 System.out.println("Conflict detected. Rolling back.");
                 rollbackSnapshot();
-                deleteSnapshot();
             }else{
                 System.out.println("No Conflicts. Committing transaction.\n-------------------");
                 write(filename, content);
-                deleteSnapshot();
             }
+            deleteSnapshot();
         }else{
             System.err.println("Write to " + filename + " aborted.");
         }
@@ -137,40 +134,17 @@ public class Client implements Runnable {
 
     public void createSnapshot() {
         String snapshot = this.zfspool_name + "@" + this.id;
-        try {
-            int exitCode = ZFS_FS.run_admin("sudo zfs snapshot " + snapshot, "running 'sudo zfs snapshot " + snapshot+"'");
-            if (exitCode == 0) {
-                System.out.println("Snapshot created: " + snapshot);
-            } else {
-                System.err.println("Failed to create snapshot: " + snapshot);
-            }
-        } catch (Exception e) {
-            System.err.println("Error creating snapshot: " + e.getMessage());
-        }
+        ZFS_FS.createSnapshot(snapshot);
     }
 
     public void rollbackSnapshot() {
         String snapshot = this.zfspool_name + "@" + this.id;
-        try {
-            int exitCode = ZFS_FS.run_admin("sudo zfs rollback -r " + snapshot, "running 'zfs rollback -r " + snapshot+"'");
-            if (exitCode != 0) {
-                System.err.println("Failed to roll back to snapshot: " + snapshot);
-            }
-        } catch (Exception e) {
-            System.err.println("Error rolling back snapshot: " + e.getMessage());
-        }
+        ZFS_FS.rollback(snapshot);
     }
 
     public void deleteSnapshot(){
         String snapshot = this.zfspool_name + "@" + this.id;
-        try {
-            int exitCode = ZFS_FS.run_admin("sudo zfs destroy " + snapshot, "running 'zfs destroy " + snapshot+"'");
-            if (exitCode != 0) {
-                System.err.println("Failed to delete snapshot: " + snapshot);
-            }
-        } catch (Exception e) {
-            System.err.println("Error rolling back snapshot: " + e.getMessage());
-        }
+        ZFS_FS.deleteSnapshot(snapshot);
     }
 
 
@@ -241,13 +215,10 @@ public class Client implements Runnable {
                         ideaName = words[1];
                         ideaContent = quotationSubstring;
                         if(ideaContent.isEmpty()) throw new FS_Exception("Content needs to be given in \"quotation marks\"");
+                        String content = read(ideaName);
+                        content = content + ideaContent;
                         System.out.println("Replacing idea " + ideaName +" with \"" + ideaContent+"\"");
-                        if(commitPrompt())
-                        {
-                            append(ideaName, ideaContent);
-                        }else{
-                            System.err.println("Write to " + ideaName + " aborted.");
-                        }
+                        commit(ideaName, content);
                         break;
 
                     case "delete":

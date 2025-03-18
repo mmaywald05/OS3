@@ -27,4 +27,15 @@ bin/
 
 ### Mac OS ###
 .DS_Store
-/mountpoint/
+# Exclude everything inside mountpoint but keep the folder
+/mountpoint/*
+/src/mountpoint/*
+
+# Allow the mountpoint folders to be tracked
+!/mountpoint/
+!/src/mountpoint/
+/src/Client.class
+/src/ClientRunner.class
+/src/Client$FS_Exception.class
+/src/InitializeFS.class
+/src/ZFS_FS.class
